@@ -1,0 +1,301 @@
+import { useState, useRef, useEffect } from "react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { QrCode, Camera, X, CheckCircle, XCircle, Loader2 } from "lucide-react";
+
+interface QRScannerProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export function QRScanner({ isOpen, onClose }: QRScannerProps) {
+  const [isScanning, setIsScanning] = useState(false);
+  const [scannedCode, setScannedCode] = useState<string>("");
+  const [scanResult, setScanResult] = useState<"success" | "error" | null>(null);
+  const [errorMessage, setErrorMessage] = useState("");
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const checkInMutation = useMutation({
+    mutationFn: async (code: string) => {
+      return await apiRequest('POST', '/api/attendance/qr-checkin', { code });
+    },
+    onSuccess: () => {
+      setScanResult("success");
+      toast({
+        title: "Check-in Successful! 🎉",
+        description: "You've been marked present. +25 XP earned!",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/student'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/attendance/stats'] });
+      
+      // Auto-close after success
+      setTimeout(() => {
+        handleClose();
+      }, 2000);
+    },
+    onError: (error: any) => {
+      setScanResult("error");
+      setErrorMessage(error.message || "Invalid or expired QR code");
+      toast({
+        title: "Check-in Failed",
+        description: error.message || "Invalid or expired QR code",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const startCamera = async () => {
+    try {
+      setIsScanning(true);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { 
+          facingMode: "environment", // Use back camera on mobile
+          width: { ideal: 640 },
+          height: { ideal: 480 }
+        }
+      });
+      
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+      }
+    } catch (error) {
+      console.error("Error accessing camera:", error);
+      toast({
+        title: "Camera Error",
+        description: "Unable to access camera. Please check permissions.",
+        variant: "destructive"
+      });
+      setIsScanning(false);
+    }
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    setIsScanning(false);
+  };
+
+  const handleClose = () => {
+    stopCamera();
+    setScannedCode("");
+    setScanResult(null);
+    setErrorMessage("");
+    onClose();
+  };
+
+  const handleManualInput = () => {
+    const code = prompt("Enter QR code manually:");
+    if (code) {
+      setScannedCode(code);
+      checkInMutation.mutate(code);
+    }
+  };
+
+  // Simulate QR code detection (in a real app, you'd use a QR code scanning library)
+  const simulateQRScan = () => {
+    // Generate a mock QR code for demo
+    const mockCode = `attendance_${Date.now()}_demo123`;
+    setScannedCode(mockCode);
+    checkInMutation.mutate(mockCode);
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      setScannedCode("");
+      setScanResult(null);
+      setErrorMessage("");
+    } else {
+      stopCamera();
+    }
+
+    return () => {
+      stopCamera();
+    };
+  }, [isOpen]);
+
+  return (
+    <Dialog open={isOpen} onOpenChange={handleClose}>
+      <DialogContent className="w-full max-w-md bg-card border-border" data-testid="qr-scanner-modal">
+        <DialogHeader>
+          <DialogTitle className="flex items-center space-x-2">
+            <QrCode className="w-5 h-5 text-primary" />
+            <span>QR Code Scanner</span>
+          </DialogTitle>
+          <DialogDescription>
+            Scan the QR code displayed by your teacher to mark attendance
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Camera View or Result Display */}
+          <Card className="border-border">
+            <CardContent className="p-0">
+              {scanResult ? (
+                // Success/Error Result
+                <div className="h-64 flex flex-col items-center justify-center space-y-4">
+                  {scanResult === "success" ? (
+                    <>
+                      <div className="w-16 h-16 bg-accent rounded-full flex items-center justify-center animate-pulse-glow">
+                        <CheckCircle className="w-8 h-8 text-accent-foreground" />
+                      </div>
+                      <div className="text-center">
+                        <h3 className="font-bold text-accent">Check-in Successful!</h3>
+                        <p className="text-sm text-muted-foreground">Attendance marked for today</p>
+                        <Badge className="mt-2 bg-accent/10 border border-accent/20 text-accent">
+                          +25 XP Earned
+                        </Badge>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-16 h-16 bg-destructive rounded-full flex items-center justify-center">
+                        <XCircle className="w-8 h-8 text-destructive-foreground" />
+                      </div>
+                      <div className="text-center">
+                        <h3 className="font-bold text-destructive">Check-in Failed</h3>
+                        <p className="text-sm text-muted-foreground px-4">{errorMessage}</p>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : isScanning ? (
+                // Camera Feed
+                <div className="relative h-64 bg-muted rounded-lg overflow-hidden">
+                  <video
+                    ref={videoRef}
+                    className="w-full h-full object-cover"
+                    playsInline
+                    muted
+                  />
+                  
+                  {/* Scanning Overlay */}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-48 h-48 border-2 border-primary border-dashed rounded-lg relative">
+                      <div className="absolute inset-0 border-2 border-primary rounded-lg animate-pulse-glow"></div>
+                      <div className="absolute top-2 left-2 w-4 h-4 border-t-2 border-l-2 border-primary"></div>
+                      <div className="absolute top-2 right-2 w-4 h-4 border-t-2 border-r-2 border-primary"></div>
+                      <div className="absolute bottom-2 left-2 w-4 h-4 border-b-2 border-l-2 border-primary"></div>
+                      <div className="absolute bottom-2 right-2 w-4 h-4 border-b-2 border-r-2 border-primary"></div>
+                    </div>
+                  </div>
+                  
+                  {/* Instructions */}
+                  <div className="absolute bottom-4 left-0 right-0 text-center">
+                    <p className="text-sm text-primary-foreground bg-background/80 px-3 py-1 rounded-full inline-block">
+                      Position QR code in the frame
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                // Initial State
+                <div className="h-64 flex flex-col items-center justify-center space-y-4">
+                  <div className="w-16 h-16 bg-muted border-2 border-dashed border-border rounded-lg flex items-center justify-center">
+                    <QrCode className="w-8 h-8 text-muted-foreground" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm text-muted-foreground">Camera view will appear here</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Make sure to allow camera permissions
+                    </p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Scanned Code Display */}
+          {scannedCode && (
+            <Card className="border-primary/20 bg-primary/5">
+              <CardContent className="p-3">
+                <div className="flex items-center space-x-2">
+                  <QrCode className="w-4 h-4 text-primary" />
+                  <span className="text-sm font-mono text-primary">
+                    {scannedCode}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex space-x-3">
+            {!scanResult && (
+              <>
+                {!isScanning ? (
+                  <Button
+                    className="flex-1 glow-border"
+                    onClick={startCamera}
+                    disabled={checkInMutation.isPending}
+                    data-testid="button-start-camera"
+                  >
+                    <Camera className="w-4 h-4 mr-2" />
+                    Start Camera
+                  </Button>
+                ) : (
+                  <Button
+                    className="flex-1 glow-border"
+                    onClick={simulateQRScan}
+                    disabled={checkInMutation.isPending}
+                    data-testid="button-scan-qr"
+                  >
+                    {checkInMutation.isPending ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <QrCode className="w-4 h-4 mr-2" />
+                        Simulate Scan
+                      </>
+                    )}
+                  </Button>
+                )}
+                
+                <Button
+                  variant="outline"
+                  onClick={handleManualInput}
+                  disabled={checkInMutation.isPending}
+                  data-testid="button-manual-input"
+                >
+                  Manual Entry
+                </Button>
+              </>
+            )}
+            
+            <Button
+              variant="outline"
+              onClick={handleClose}
+              data-testid="button-close-scanner"
+            >
+              <X className="w-4 h-4 mr-2" />
+              {scanResult ? "Close" : "Cancel"}
+            </Button>
+          </div>
+
+          {/* Help Text */}
+          {!scanResult && (
+            <div className="text-center">
+              <p className="text-xs text-muted-foreground">
+                Ask your teacher to display the QR code for today's attendance.
+                {!isScanning && " You can also try the 'Simulate Scan' button for demo purposes."}
+              </p>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
