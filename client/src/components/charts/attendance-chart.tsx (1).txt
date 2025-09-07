@@ -1,0 +1,148 @@
+import { useEffect, useRef } from "react";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler,
+} from "chart.js";
+import { Line } from "react-chartjs-2";
+import type { Attendance } from "@shared/schema";
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+);
+
+interface AttendanceChartProps {
+  data: Attendance[];
+}
+
+export function AttendanceChart({ data }: AttendanceChartProps) {
+  const chartRef = useRef<ChartJS<"line">>(null);
+
+  // Process data for the last 30 days
+  const processData = () => {
+    const last30Days = Array.from({ length: 30 }, (_, i) => {
+      const date = new Date();
+      date.setDate(date.getDate() - (29 - i));
+      return date.toISOString().split('T')[0];
+    });
+
+    const attendanceMap = new Map();
+    data.forEach(record => {
+      attendanceMap.set(record.date, record.isPresent);
+    });
+
+    const chartData = last30Days.map(date => {
+      const attendance = attendanceMap.get(date);
+      return attendance === true ? 100 : attendance === false ? 0 : null;
+    });
+
+    const labels = last30Days.map(date => {
+      const d = new Date(date);
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    });
+
+    return { chartData, labels };
+  };
+
+  const { chartData, labels } = processData();
+
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false,
+      },
+      tooltip: {
+        backgroundColor: 'hsl(240, 10%, 8%)',
+        titleColor: 'hsl(210, 40%, 98%)',
+        bodyColor: 'hsl(210, 40%, 96%)',
+        borderColor: 'hsl(195, 100%, 50%)',
+        borderWidth: 1,
+        callbacks: {
+          label: (context: any) => {
+            const value = context.parsed.y;
+            return value === 100 ? 'Present' : value === 0 ? 'Absent' : 'No Data';
+          },
+        },
+      },
+    },
+    scales: {
+      x: {
+        grid: {
+          color: 'hsl(240, 10%, 18%)',
+        },
+        ticks: {
+          color: 'hsl(240, 5%, 65%)',
+          maxTicksLimit: 10,
+        },
+      },
+      y: {
+        min: 0,
+        max: 100,
+        grid: {
+          color: 'hsl(240, 10%, 18%)',
+        },
+        ticks: {
+          color: 'hsl(240, 5%, 65%)',
+          callback: (value: any) => {
+            return value === 100 ? 'Present' : value === 0 ? 'Absent' : '';
+          },
+        },
+      },
+    },
+    elements: {
+      point: {
+        radius: 4,
+        hoverRadius: 6,
+      },
+      line: {
+        tension: 0.3,
+      },
+    },
+    interaction: {
+      intersect: false,
+      mode: 'index' as const,
+    },
+  };
+
+  const chartDataConfig = {
+    labels,
+    datasets: [
+      {
+        label: 'Attendance',
+        data: chartData,
+        borderColor: 'hsl(195, 100%, 50%)',
+        backgroundColor: 'hsl(195, 100%, 50% / 0.1)',
+        fill: true,
+        pointBackgroundColor: 'hsl(195, 100%, 50%)',
+        pointBorderColor: 'hsl(240, 10%, 8%)',
+        pointBorderWidth: 2,
+        spanGaps: false, // Don't connect null values
+      },
+    ],
+  };
+
+  return (
+    <div className="w-full h-full" data-testid="attendance-chart">
+      <Line
+        ref={chartRef}
+        data={chartDataConfig}
+        options={chartOptions}
+      />
+    </div>
+  );
+}
