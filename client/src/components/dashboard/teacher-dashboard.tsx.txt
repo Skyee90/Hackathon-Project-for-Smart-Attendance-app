@@ -1,0 +1,247 @@
+import { useQuery } from "@tanstack/react-query";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Users, CheckCircle, AlertTriangle, BarChart3, Mail } from "lucide-react";
+
+export function TeacherDashboard() {
+  const { data, isLoading } = useQuery({
+    queryKey: ['/api/dashboard/teacher']
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[...Array(4)].map((_, i) => (
+            <Card key={i} className="animate-pulse">
+              <CardContent className="p-6">
+                <div className="h-4 bg-muted rounded mb-4"></div>
+                <div className="h-8 bg-muted rounded"></div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-muted-foreground">Failed to load teacher dashboard data</p>
+      </div>
+    );
+  }
+
+  const { totalStudents, presentToday, lowAttendanceStudents, avgAttendance, homework } = data;
+
+  return (
+    <div className="space-y-6" data-testid="teacher-dashboard">
+      {/* Teacher Overview Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-medium text-muted-foreground">Total Students</h3>
+              <Users className="text-primary text-xl" />
+            </div>
+            <p className="text-3xl font-bold text-primary" data-testid="text-total-students">
+              {totalStudents}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="glow-border">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-medium text-muted-foreground">Present Today</h3>
+              <CheckCircle className="text-accent text-xl" />
+            </div>
+            <p className="text-3xl font-bold text-accent" data-testid="text-present-today">
+              {presentToday}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-destructive/20">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-medium text-muted-foreground">Below 70%</h3>
+              <AlertTriangle className="text-destructive text-xl" />
+            </div>
+            <p className="text-3xl font-bold text-destructive" data-testid="text-low-attendance">
+              {lowAttendanceStudents?.length || 0}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-medium text-muted-foreground">Avg Attendance</h3>
+              <BarChart3 className="text-secondary text-xl" />
+            </div>
+            <p className="text-3xl font-bold text-secondary" data-testid="text-avg-attendance">
+              {avgAttendance}%
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Students Requiring Attention */}
+      {lowAttendanceStudents && lowAttendanceStudents.length > 0 && (
+        <Card className="border-destructive/20">
+          <CardHeader>
+            <CardTitle className="text-destructive flex items-center">
+              <AlertTriangle className="mr-2" />
+              Students Requiring Attention
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {lowAttendanceStudents.map((student: any, index: number) => (
+                <div 
+                  key={student.id} 
+                  className="p-4 bg-destructive/5 border border-destructive/20 rounded-lg"
+                  data-testid={`low-attendance-student-${index}`}
+                >
+                  <div className="flex items-center space-x-3 mb-3">
+                    <div className="w-10 h-10 bg-destructive/20 rounded-full flex items-center justify-center">
+                      <span className="text-sm font-bold text-destructive">
+                        {student.name.split(' ').map((n: string) => n[0]).join('')}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="font-medium">{student.name}</p>
+                      <p className="text-sm text-muted-foreground">{student.studentId}</p>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-sm">Attendance Rate</span>
+                      <span className="text-sm font-bold text-destructive">
+                        {student.attendanceRate}%
+                      </span>
+                    </div>
+                    <Button 
+                      size="sm" 
+                      className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      data-testid={`contact-parent-${index}`}
+                    >
+                      <Mail className="w-4 h-4 mr-2" />
+                      Contact Parent
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Homework Tracking */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Homework Tracker</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">Assignment</th>
+                  <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">Due Date</th>
+                  <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">Submitted</th>
+                  <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">On Time</th>
+                  <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {homework && homework.length > 0 ? (
+                  homework.map((hw: any, index: number) => (
+                    <tr key={hw.id} className="border-b border-border/50">
+                      <td className="py-3 px-2">
+                        <p className="font-medium">{hw.title}</p>
+                        <p className="text-sm text-muted-foreground">{hw.subject}</p>
+                      </td>
+                      <td className="py-3 px-2 text-sm">
+                        {new Date(hw.dueDate).toLocaleDateString()}
+                      </td>
+                      <td className="py-3 px-2">
+                        <Badge className="bg-accent/10 text-accent">
+                          {Math.floor(Math.random() * totalStudents)}/{totalStudents}
+                        </Badge>
+                      </td>
+                      <td className="py-3 px-2">
+                        <Badge className="bg-accent/10 text-accent">
+                          {Math.floor(Math.random() * totalStudents)}/{totalStudents}
+                        </Badge>
+                      </td>
+                      <td className="py-3 px-2">
+                        <Button variant="link" size="sm" data-testid={`homework-details-${index}`}>
+                          View Details
+                        </Button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-muted-foreground">
+                      No homework assignments yet
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Quick Actions */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Generate QR Code</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-4">
+              Create a QR code for today's attendance
+            </p>
+            <Button className="w-full glow-border" data-testid="button-generate-qr">
+              Generate QR Code
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Create Assignment</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-4">
+              Add a new homework assignment
+            </p>
+            <Button className="w-full" variant="outline" data-testid="button-create-assignment">
+              Create Assignment
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>View Reports</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-4">
+              Generate attendance reports
+            </p>
+            <Button className="w-full" variant="outline" data-testid="button-view-reports">
+              View Reports
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}

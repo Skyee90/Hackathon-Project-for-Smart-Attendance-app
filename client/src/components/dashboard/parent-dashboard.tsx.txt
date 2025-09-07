@@ -1,0 +1,221 @@
+import { useQuery } from "@tanstack/react-query";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { useState } from "react";
+import { Trophy, TrendingUp, BookOpen, Calendar } from "lucide-react";
+
+export function ParentDashboard() {
+  const [selectedChildIndex, setSelectedChildIndex] = useState(0);
+  
+  const { data, isLoading } = useQuery({
+    queryKey: ['/api/dashboard/parent']
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <Card className="animate-pulse">
+          <CardContent className="p-6">
+            <div className="h-4 bg-muted rounded mb-4"></div>
+            <div className="h-10 bg-muted rounded"></div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!data || !data.children || data.children.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-muted-foreground">No children linked to this parent account</p>
+      </div>
+    );
+  }
+
+  const selectedChild = data.children[selectedChildIndex];
+  const { child, gamification, attendance, achievements } = selectedChild;
+
+  return (
+    <div className="space-y-6" data-testid="parent-dashboard">
+      {/* Child Selector */}
+      <Card>
+        <CardContent className="p-6">
+          <label className="block text-sm font-medium mb-3">Viewing progress for:</label>
+          <Select 
+            value={selectedChildIndex.toString()} 
+            onValueChange={(value) => setSelectedChildIndex(parseInt(value))}
+          >
+            <SelectTrigger data-testid="select-child">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {data.children.map((childData: any, index: number) => (
+                <SelectItem key={index} value={index.toString()}>
+                  {childData.child.name} - {childData.child.studentId || 'Student'}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
+
+      {/* Child Progress Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Overall Performance</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center">
+              <div className="w-20 h-20 mx-auto mb-4 relative">
+                <div className="w-full h-full bg-muted rounded-full flex items-center justify-center">
+                  <span className="text-xl font-bold text-accent">A-</span>
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground">Excellent Progress</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Attendance This Month</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold text-primary mb-2" data-testid="text-child-attendance">
+              {attendance?.rate || 0}%
+            </p>
+            <p className="text-sm text-accent">Above class average</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Experience Points</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold text-accent mb-2" data-testid="text-child-xp">
+              {gamification?.xp?.toLocaleString() || 0}
+            </p>
+            <p className="text-sm text-secondary">Level {gamification?.level || 1}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Child's Recent Achievements */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Achievements</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {achievements && achievements.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {achievements.slice(0, 6).map((achievement: any, index: number) => (
+                <div 
+                  key={achievement.id}
+                  className="flex items-center space-x-3 p-3 bg-muted/50 rounded-lg border border-border hover:border-accent/50 transition-all"
+                  data-testid={`child-achievement-${index}`}
+                >
+                  <div className="w-10 h-10 bg-gradient-to-br from-accent to-primary rounded-full flex items-center justify-center">
+                    <Trophy className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm">{achievement.achievement?.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      +{achievement.achievement?.xpReward} XP
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-center text-muted-foreground py-8">
+              No achievements unlocked yet
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Recent Parent Notifications */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Updates</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {achievements && achievements.length > 0 && (
+              <div className="flex items-start space-x-3 p-4 bg-accent/5 border border-accent/20 rounded-lg">
+                <div className="w-8 h-8 bg-accent rounded-full flex items-center justify-center flex-shrink-0">
+                  <Trophy className="w-4 h-4 text-accent-foreground" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium">Achievement Unlocked!</p>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    {child.name} earned the "{achievements[0]?.achievement?.name}" badge.
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {new Date(achievements[0]?.unlockedAt).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-start space-x-3 p-4 bg-primary/5 border border-primary/20 rounded-lg">
+              <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
+                <Calendar className="w-4 h-4 text-primary-foreground" />
+              </div>
+              <div className="flex-1">
+                <p className="font-medium">Attendance Update</p>
+                <p className="text-sm text-muted-foreground mb-2">
+                  {child.name} maintained perfect attendance this week!
+                </p>
+                <p className="text-xs text-muted-foreground">Today</p>
+              </div>
+            </div>
+
+            <div className="flex items-start space-x-3 p-4 bg-secondary/5 border border-secondary/20 rounded-lg">
+              <div className="w-8 h-8 bg-secondary rounded-full flex items-center justify-center flex-shrink-0">
+                <BookOpen className="w-4 h-4 text-secondary-foreground" />
+              </div>
+              <div className="flex-1">
+                <p className="font-medium">Homework Submitted</p>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Math assignment submitted on time.
+                </p>
+                <p className="text-xs text-muted-foreground">Yesterday</p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Performance Summary */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Performance Summary</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+            <div>
+              <p className="text-2xl font-bold text-primary">{attendance?.streak || 0}</p>
+              <p className="text-sm text-muted-foreground">Day Streak</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-accent">{gamification?.level || 1}</p>
+              <p className="text-sm text-muted-foreground">Current Level</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-secondary">{achievements?.length || 0}</p>
+              <p className="text-sm text-muted-foreground">Badges Earned</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-primary">{attendance?.totalDays || 0}</p>
+              <p className="text-sm text-muted-foreground">Total Attendance</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
